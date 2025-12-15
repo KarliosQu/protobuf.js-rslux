@@ -218,4 +218,18 @@ impl Reader {
     pub fn has_more(&self) -> bool {
         self.pos < self.buffer.len()
     }
+
+    /// Read exact number of bytes (without length prefix)
+    #[napi]
+    pub fn read_raw_bytes(&mut self, length: u32) -> Result<Buffer> {
+        let len = length as usize;
+        if self.pos + len > self.buffer.len() {
+            return Err(Error::from_reason("Unexpected end of buffer"));
+        }
+        
+        let bytes = self.buffer[self.pos..self.pos + len].to_vec();
+        self.pos += len;
+        
+        Ok(Buffer::from(bytes))
+    }
 }

@@ -4,6 +4,10 @@
   "description": "High-performance Rust native module for protobuf.js using NAPI-RS",
   "main": "index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": "./index.js",
+    "./message": "./message.js"
+  },
   "napi": {
     "binaryName": "protobuf-rslux",
     "targets": [
