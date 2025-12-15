@@ -1,43 +1,25 @@
 {
-  "name": "protobuf-rslux",
+  "name": "protobufjs-rslux",
   "version": "0.1.0",
-  "description": "High-performance Rust native module for protobuf.js using NAPI-RS",
+  "description": "Rust-accelerated Protocol Buffers for JavaScript",
   "main": "index.js",
   "types": "index.d.ts",
-  "exports": {
-    ".": "./index.js",
-    "./message": "./message.js"
-  },
   "napi": {
-    "binaryName": "protobuf-rslux",
-    "targets": [
-      "x86_64-unknown-linux-gnu",
-      "aarch64-unknown-linux-gnu",
-      "x86_64-pc-windows-msvc",
-      "x86_64-apple-darwin",
-      "aarch64-apple-darwin"
-    ]
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "@napi-rs/cli": "^3.0.0-alpha.71",
-    "@types/node": "^20.0.0",
-    "protobufjs": "^7.5.4"
-  },
-  "engines": {
-    "node": ">= 10"
+    "name": "protobuf-rslux",
+    "triples": {
+      "defaults": true
+    }
   },
   "scripts": {
-    "artifacts": "napi artifacts",
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
-    "prepublishOnly": "napi prepublish -t npm",
-    "test": "node test.js && node test-message.js",
-    "test:basic": "node test.js",
-    "test:message": "node test-message.js",
-    "example": "node example.js",
-    "benchmark": "node benchmark.js",
-    "benchmark:compare": "node --expose-gc benchmark-comparison.js",
-    "version": "napi version"
+    "test": "node test.js",
+    "bench": "node benchmark.js",
+    "bench:compare": "node benchmark-comparison.js"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2.0.0",
+    "protobufjs": "^7.0.0",
+    "benchmark": "^2.1.4"
   }
 }

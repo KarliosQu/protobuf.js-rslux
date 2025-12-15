@@ -1,231 +1,304 @@
 /**
- * Comprehensive benchmark for protobuf-rslux
+ * Basic performance benchmark for protobufjs-rslux
+ * Tests encoding and decoding performance across various scenarios
  */
 
-const {
-  Message,
-  Reader,
-  Writer,
-  WIRE_TYPE_VARINT,
-  WIRE_TYPE_LENGTH_DELIMITED,
-} = require('./message.js');
+const { Writer, Reader } = require('./index.js');
 
-// Define a more complex benchmark message
-class BenchmarkMessage extends Message {
-  constructor(properties) {
-    super(properties);
-    this.id = properties?.id || 0;
-    this.name = properties?.name || '';
-    this.email = properties?.email || '';
-    this.age = properties?.age || 0;
-    this.score = properties?.score || 0.0;
-    this.active = properties?.active || false;
-    this.tags = properties?.tags || [];
-    this.metadata = properties?.metadata || {};
-  }
-
-  static encode(message, writer) {
-    if (!writer) writer = new Writer();
-    
-    if (message.id !== 0) {
-      writer.writeTag(1, WIRE_TYPE_VARINT);
-      writer.writeVarint32(message.id);
-    }
-    
-    if (message.name !== '') {
-      writer.writeTag(2, WIRE_TYPE_LENGTH_DELIMITED);
-      writer.writeString(message.name);
-    }
-    
-    if (message.email !== '') {
-      writer.writeTag(3, WIRE_TYPE_LENGTH_DELIMITED);
-      writer.writeString(message.email);
-    }
-    
-    if (message.age !== 0) {
-      writer.writeTag(4, WIRE_TYPE_VARINT);
-      writer.writeVarint32(message.age);
-    }
-    
-    if (message.score !== 0.0) {
-      writer.writeTag(5, 0x01); // WIRE_TYPE_FIXED64 for double
-      writer.writeDouble(message.score);
-    }
-    
-    if (message.active !== false) {
-      writer.writeTag(6, WIRE_TYPE_VARINT);
-      writer.writeBool(message.active);
-    }
-    
-    if (message.tags && message.tags.length) {
-      for (const tag of message.tags) {
-        writer.writeTag(7, WIRE_TYPE_LENGTH_DELIMITED);
-        writer.writeString(tag);
-      }
-    }
-    
-    return writer;
-  }
-
-  static decode(reader) {
-    if (!(reader instanceof Reader)) {
-      reader = new Reader(Buffer.from(reader));
-    }
-    
-    const message = new BenchmarkMessage();
-    
-    while (reader.hasMore()) {
-      const tag = reader.readVarint32();
-      const fieldNumber = tag >>> 3;
-      const wireType = tag & 0x7;
-      
-      switch (fieldNumber) {
-        case 1: message.id = reader.readVarint32(); break;
-        case 2: message.name = reader.readString(); break;
-        case 3: message.email = reader.readString(); break;
-        case 4: message.age = reader.readVarint32(); break;
-        case 5: message.score = reader.readDouble(); break;
-        case 6: message.active = reader.readBool(); break;
-        case 7:
-          if (!message.tags) message.tags = [];
-          message.tags.push(reader.readString());
-          break;
-        default: reader.skipType(wireType); break;
-      }
-    }
-    
-    return message;
-  }
+// Helper to format numbers
+function formatNumber(num) {
+  return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-console.log('📊 protobuf-rslux Comprehensive Benchmark');
-console.log('='.repeat(60));
-console.log('');
-
-// Create test data
-const testMessage = BenchmarkMessage.create({
-  id: 12345,
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  age: 30,
-  score: 95.5,
-  active: true,
-  tags: ['developer', 'rust', 'javascript', 'protobuf'],
-});
-
-// Pre-encode for decode benchmark
-const encodedBuffer = BenchmarkMessage.encode(testMessage).finish();
-
-console.log('Test Message:');
-console.log('  Size:', encodedBuffer.length, 'bytes');
-console.log('  Fields: 7 (mixed types)');
-console.log('  Repeated fields: 4 strings');
-console.log('');
-
-// Benchmark configuration
-const ITERATIONS = 100000;
-const WARMUP = 10000;
-
-function benchmark(name, fn) {
+// Helper to measure performance
+function benchmark(name, fn, iterations = 100000) {
   // Warmup
-  for (let i = 0; i < WARMUP; i++) {
+  for (let i = 0; i < 1000; i++) fn();
+  
+  // Measure
+  const start = process.hrtime.bigint();
+  for (let i = 0; i < iterations; i++) {
     fn();
   }
+  const end = process.hrtime.bigint();
   
-  // Actual benchmark
-  const start = Date.now();
-  for (let i = 0; i < ITERATIONS; i++) {
-    fn();
-  }
-  const elapsed = Date.now() - start;
+  const durationMs = Number(end - start) / 1000000;
+  const opsPerSec = (iterations / durationMs) * 1000;
   
-  const opsPerSec = Math.round(ITERATIONS / elapsed * 1000);
-  const msPerOp = (elapsed / ITERATIONS).toFixed(4);
+  console.log(`${name.padEnd(40)} ${formatNumber(opsPerSec).padStart(15)} ops/sec`);
   
-  console.log(`${name}:`);
-  console.log(`  Time: ${elapsed} ms`);
-  console.log(`  Throughput: ${opsPerSec.toLocaleString()} ops/sec`);
-  console.log(`  Latency: ${msPerOp} ms/op`);
-  console.log('');
-  
-  return { elapsed, opsPerSec, msPerOp };
+  return opsPerSec;
 }
 
-// Benchmark 1: Encoding
-console.log('Benchmark 1: Message Encoding');
-console.log('-'.repeat(60));
-const encodeResults = benchmark('Encode', () => {
-  BenchmarkMessage.encode(testMessage).finish();
-});
+console.log('\n╔════════════════════════════════════════════════════════════════╗');
+console.log('║          protobufjs-rslux Performance Benchmark               ║');
+console.log('╚════════════════════════════════════════════════════════════════╝\n');
 
-// Benchmark 2: Decoding
-console.log('Benchmark 2: Message Decoding');
-console.log('-'.repeat(60));
-const decodeResults = benchmark('Decode', () => {
-  BenchmarkMessage.decode(encodedBuffer);
-});
+console.log('=== Writer Performance ===\n');
 
-// Benchmark 3: Full roundtrip
-console.log('Benchmark 3: Encode + Decode Roundtrip');
-console.log('-'.repeat(60));
-const roundtripResults = benchmark('Roundtrip', () => {
-  const buf = BenchmarkMessage.encode(testMessage).finish();
-  BenchmarkMessage.decode(buf);
-});
-
-// Benchmark 4: Small message
-const smallMessage = BenchmarkMessage.create({ id: 1 });
-const smallBuffer = BenchmarkMessage.encode(smallMessage).finish();
-console.log('Benchmark 4: Small Message (1 field, ' + smallBuffer.length + ' bytes)');
-console.log('-'.repeat(60));
-const smallResults = benchmark('Small Message', () => {
-  const buf = BenchmarkMessage.encode(smallMessage).finish();
-  BenchmarkMessage.decode(buf);
-});
-
-// Benchmark 5: Writer/Reader primitives
-console.log('Benchmark 5: Low-level Writer/Reader Operations');
-console.log('-'.repeat(60));
-
-const writerResults = benchmark('Writer (varint32)', () => {
+// Test Writer operations
+benchmark('Writer.uint32', () => {
   const w = new Writer();
-  w.writeVarint32(12345);
+  w.uint32(12345);
   w.finish();
 });
 
-const readerResults = benchmark('Reader (varint32)', () => {
-  const r = new Reader(Buffer.from([0xB9, 0x60])); // 12345 encoded
-  r.readVarint32();
+benchmark('Writer.int32', () => {
+  const w = new Writer();
+  w.int32(-12345);
+  w.finish();
 });
 
-// Summary
-console.log('='.repeat(60));
-console.log('📈 SUMMARY');
-console.log('='.repeat(60));
-console.log('');
-console.log('Encoding Performance:');
-console.log(`  ${encodeResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-console.log('Decoding Performance:');
-console.log(`  ${decodeResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-console.log('Roundtrip Performance:');
-console.log(`  ${roundtripResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-console.log('Small Message Performance:');
-console.log(`  ${smallResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-console.log('Low-level Operations:');
-console.log(`  Writer: ${writerResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log(`  Reader: ${readerResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
+benchmark('Writer.sint32', () => {
+  const w = new Writer();
+  w.sint32(-12345);
+  w.finish();
+});
 
-// Memory estimate
-const avgMessageSize = encodedBuffer.length;
-const messagesPerMB = Math.floor(1024 * 1024 / avgMessageSize);
-console.log('Memory Efficiency:');
-console.log(`  Avg message size: ${avgMessageSize} bytes`);
-console.log(`  Messages per MB: ~${messagesPerMB.toLocaleString()}`);
-console.log('');
+benchmark('Writer.uint64', () => {
+  const w = new Writer();
+  w.uint64(123456789);
+  w.finish();
+});
 
-console.log('🎉 Benchmark completed!');
+benchmark('Writer.fixed32', () => {
+  const w = new Writer();
+  w.fixed32(0x12345678);
+  w.finish();
+});
+
+benchmark('Writer.fixed64', () => {
+  const w = new Writer();
+  w.fixed64(0x123456789abcdef0);
+  w.finish();
+});
+
+benchmark('Writer.float', () => {
+  const w = new Writer();
+  w.float(3.14159);
+  w.finish();
+});
+
+benchmark('Writer.double', () => {
+  const w = new Writer();
+  w.double(3.14159265359);
+  w.finish();
+});
+
+benchmark('Writer.string (short)', () => {
+  const w = new Writer();
+  w.string('hello');
+  w.finish();
+});
+
+benchmark('Writer.string (medium)', () => {
+  const w = new Writer();
+  w.string('Hello, this is a medium-length test string for benchmarking!');
+  w.finish();
+});
+
+benchmark('Writer.bytes (small)', () => {
+  const w = new Writer();
+  w.bytes(Buffer.from([1, 2, 3, 4, 5]));
+  w.finish();
+});
+
+benchmark('Writer - chained operations', () => {
+  const w = new Writer();
+  w.uint32(1).uint32(2).uint32(3).uint32(4).uint32(5);
+  w.finish();
+});
+
+console.log('\n=== Reader Performance ===\n');
+
+// Test Reader operations
+const uint32Buf = (() => { const w = new Writer(); w.uint32(12345); return w.finish(); })();
+benchmark('Reader.uint32', () => {
+  const r = new Reader(uint32Buf);
+  r.uint32();
+});
+
+const int32Buf = (() => { const w = new Writer(); w.int32(-12345); return w.finish(); })();
+benchmark('Reader.int32', () => {
+  const r = new Reader(int32Buf);
+  r.int32();
+});
+
+const sint32Buf = (() => { const w = new Writer(); w.sint32(-12345); return w.finish(); })();
+benchmark('Reader.sint32', () => {
+  const r = new Reader(sint32Buf);
+  r.sint32();
+});
+
+const uint64Buf = (() => { const w = new Writer(); w.uint64(123456789); return w.finish(); })();
+benchmark('Reader.uint64', () => {
+  const r = new Reader(uint64Buf);
+  r.uint64();
+});
+
+const fixed32Buf = (() => { const w = new Writer(); w.fixed32(0x12345678); return w.finish(); })();
+benchmark('Reader.fixed32', () => {
+  const r = new Reader(fixed32Buf);
+  r.fixed32();
+});
+
+const fixed64Buf = (() => { const w = new Writer(); w.fixed64(0x123456789abcdef0); return w.finish(); })();
+benchmark('Reader.fixed64', () => {
+  const r = new Reader(fixed64Buf);
+  r.fixed64();
+});
+
+const floatBuf = (() => { const w = new Writer(); w.float(3.14159); return w.finish(); })();
+benchmark('Reader.float', () => {
+  const r = new Reader(floatBuf);
+  r.float();
+});
+
+const doubleBuf = (() => { const w = new Writer(); w.double(3.14159265359); return w.finish(); })();
+benchmark('Reader.double', () => {
+  const r = new Reader(doubleBuf);
+  r.double();
+});
+
+const stringBuf = (() => { const w = new Writer(); w.string('hello'); return w.finish(); })();
+benchmark('Reader.string (short)', () => {
+  const r = new Reader(stringBuf);
+  r.string();
+});
+
+const medStringBuf = (() => { const w = new Writer(); w.string('Hello, this is a medium-length test string for benchmarking!'); return w.finish(); })();
+benchmark('Reader.string (medium)', () => {
+  const r = new Reader(medStringBuf);
+  r.string();
+});
+
+const bytesBuf = (() => { const w = new Writer(); w.bytes(Buffer.from([1, 2, 3, 4, 5])); return w.finish(); })();
+benchmark('Reader.bytes (small)', () => {
+  const r = new Reader(bytesBuf);
+  r.bytes();
+});
+
+console.log('\n=== Complex Message Performance ===\n');
+
+// Simulate a complex message with multiple fields
+function encodeComplexMessage() {
+  const w = new Writer();
+  w.uint32(1);         // id
+  w.string('John Doe'); // name
+  w.uint32(30);        // age
+  w.string('john@example.com'); // email
+  w.bool(true);        // active
+  w.double(1234.56);   // balance
+  w.fixed32(0xdeadbeef); // token
+  return w.finish();
+}
+
+const complexBuf = encodeComplexMessage();
+
+benchmark('Encode - Complex message (7 fields)', () => {
+  encodeComplexMessage();
+});
+
+benchmark('Decode - Complex message (7 fields)', () => {
+  const r = new Reader(complexBuf);
+  r.uint32();   // id
+  r.string();   // name
+  r.uint32();   // age
+  r.string();   // email
+  r.bool();     // active
+  r.double();   // balance
+  r.fixed32();  // token
+});
+
+benchmark('Round-trip - Complex message', () => {
+  const buf = encodeComplexMessage();
+  const r = new Reader(buf);
+  r.uint32();
+  r.string();
+  r.uint32();
+  r.string();
+  r.bool();
+  r.double();
+  r.fixed32();
+});
+
+console.log('\n=== Message Size Scenarios ===\n');
+
+// Small message
+function encodeSmallMessage() {
+  const w = new Writer();
+  w.uint32(42);
+  w.bool(true);
+  return w.finish();
+}
+
+benchmark('Small message (2 fields)', () => {
+  encodeSmallMessage();
+});
+
+// Medium message
+function encodeMediumMessage() {
+  const w = new Writer();
+  for (let i = 0; i < 10; i++) {
+    w.uint32(i);
+  }
+  return w.finish();
+}
+
+benchmark('Medium message (10 fields)', () => {
+  encodeMediumMessage();
+});
+
+// Large message
+function encodeLargeMessage() {
+  const w = new Writer();
+  for (let i = 0; i < 100; i++) {
+    w.uint32(i);
+  }
+  return w.finish();
+}
+
+benchmark('Large message (100 fields)', () => {
+  encodeLargeMessage();
+}, 10000);
+
+console.log('\n=== Nested Messages (fork/ldelim) ===\n');
+
+function encodeNestedMessage() {
+  const w = new Writer();
+  w.uint32(1);
+  w.fork();
+  w.uint32(10);
+  w.uint32(20);
+  w.ldelim();
+  w.uint32(2);
+  return w.finish();
+}
+
+benchmark('Encode - Nested message', () => {
+  encodeNestedMessage();
+});
+
+const nestedBuf = encodeNestedMessage();
+benchmark('Decode - Nested message', () => {
+  const r = new Reader(nestedBuf);
+  r.uint32();
+  const len = r.uint32();
+  r.uint32();
+  r.uint32();
+  r.uint32();
+});
+
+console.log('\n=== Throughput Analysis ===\n');
+
+const complexMsgSize = complexBuf.length;
+const complexOpsPerSec = benchmark('Throughput test - Complex encoding', encodeComplexMessage, 100000);
+const encodeThroughputMBps = (complexOpsPerSec * complexMsgSize) / (1024 * 1024);
+
+console.log(`\nMessage size: ${complexMsgSize} bytes`);
+console.log(`Encoding throughput: ${encodeThroughputMBps.toFixed(2)} MB/s`);
+console.log(`Operations per second: ${formatNumber(complexOpsPerSec)} ops/sec`);
+
+console.log('\n╔════════════════════════════════════════════════════════════════╗');
+console.log('║                    Benchmark Complete                          ║');
+console.log('╚════════════════════════════════════════════════════════════════╝\n');

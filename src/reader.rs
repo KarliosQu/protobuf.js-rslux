@@ -12,7 +12,7 @@ pub struct Reader {
 
 #[napi]
 impl Reader {
-    /// Create a new Reader from a Uint8Array or Buffer
+    /// Create a new Reader from a Buffer or Uint8Array
     #[napi(constructor)]
     pub fn new(buffer: Buffer) -> Self {
         Reader {
@@ -21,47 +21,65 @@ impl Reader {
         }
     }
 
-    /// Get current position
+    /// Read uint32 (varint decoded)
     #[napi]
-    pub fn get_pos(&self) -> u32 {
-        self.pos as u32
-    }
-
-    /// Read a varint as u32
-    #[napi]
-    pub fn read_varint32(&mut self) -> Result<u32> {
+    pub fn uint32(&mut self) -> Result<u32> {
         decode_varint32(&self.buffer, &mut self.pos)
             .map_err(|e| Error::from_reason(e))
     }
 
-    /// Read a varint as u64
+    /// Read int32 (varint decoded)
     #[napi]
-    pub fn read_varint64(&mut self) -> Result<i64> {
+    pub fn int32(&mut self) -> Result<i32> {
+        // For negative numbers, this will be encoded as 10 bytes
         let val = decode_varint64(&self.buffer, &mut self.pos)
             .map_err(|e| Error::from_reason(e))?;
-        // JavaScript can't handle full u64, return as i64
-        Ok(val as i64)
+        Ok(val as i32)
     }
 
-    /// Read a signed varint (zigzag encoded) as i32
+    /// Read sint32 (zigzag decoded)
     #[napi]
-    pub fn read_sint32(&mut self) -> Result<i32> {
+    pub fn sint32(&mut self) -> Result<i32> {
         let val = decode_varint32(&self.buffer, &mut self.pos)
             .map_err(|e| Error::from_reason(e))?;
         Ok(zigzag_decode32(val))
     }
 
-    /// Read a signed varint (zigzag encoded) as i64
+    /// Read uint64 (varint decoded)
     #[napi]
-    pub fn read_sint64(&mut self) -> Result<i64> {
+    pub fn uint64(&mut self) -> Result<i64> {
+        let val = decode_varint64(&self.buffer, &mut self.pos)
+            .map_err(|e| Error::from_reason(e))?;
+        Ok(val as i64)
+    }
+
+    /// Read int64 (varint decoded)
+    #[napi]
+    pub fn int64(&mut self) -> Result<i64> {
+        let val = decode_varint64(&self.buffer, &mut self.pos)
+            .map_err(|e| Error::from_reason(e))?;
+        Ok(val as i64)
+    }
+
+    /// Read sint64 (zigzag decoded)
+    #[napi]
+    pub fn sint64(&mut self) -> Result<i64> {
         let val = decode_varint64(&self.buffer, &mut self.pos)
             .map_err(|e| Error::from_reason(e))?;
         Ok(zigzag_decode64(val))
     }
 
-    /// Read fixed32
+    /// Read bool (varint decoded)
     #[napi]
-    pub fn read_fixed32(&mut self) -> Result<u32> {
+    pub fn bool(&mut self) -> Result<bool> {
+        let val = decode_varint32(&self.buffer, &mut self.pos)
+            .map_err(|e| Error::from_reason(e))?;
+        Ok(val != 0)
+    }
+
+    /// Read fixed32 (little-endian 4 bytes)
+    #[napi]
+    pub fn fixed32(&mut self) -> Result<u32> {
         if self.pos + 4 > self.buffer.len() {
             return Err(Error::from_reason("Unexpected end of buffer"));
         }
@@ -75,9 +93,25 @@ impl Reader {
         Ok(val)
     }
 
-    /// Read fixed64
+    /// Read sfixed32 (little-endian 4 bytes)
     #[napi]
-    pub fn read_fixed64(&mut self) -> Result<i64> {
+    pub fn sfixed32(&mut self) -> Result<i32> {
+        if self.pos + 4 > self.buffer.len() {
+            return Err(Error::from_reason("Unexpected end of buffer"));
+        }
+        let val = i32::from_le_bytes([
+            self.buffer[self.pos],
+            self.buffer[self.pos + 1],
+            self.buffer[self.pos + 2],
+            self.buffer[self.pos + 3],
+        ]);
+        self.pos += 4;
+        Ok(val)
+    }
+
+    /// Read fixed64 (little-endian 8 bytes)
+    #[napi]
+    pub fn fixed64(&mut self) -> Result<i64> {
         if self.pos + 8 > self.buffer.len() {
             return Err(Error::from_reason("Unexpected end of buffer"));
         }
@@ -95,29 +129,45 @@ impl Reader {
         Ok(val as i64)
     }
 
-    /// Read sfixed32 (signed fixed32)
+    /// Read sfixed64 (little-endian 8 bytes)
     #[napi]
-    pub fn read_sfixed32(&mut self) -> Result<i32> {
-        let val = self.read_fixed32()?;
-        Ok(val as i32)
+    pub fn sfixed64(&mut self) -> Result<i64> {
+        if self.pos + 8 > self.buffer.len() {
+            return Err(Error::from_reason("Unexpected end of buffer"));
+        }
+        let val = i64::from_le_bytes([
+            self.buffer[self.pos],
+            self.buffer[self.pos + 1],
+            self.buffer[self.pos + 2],
+            self.buffer[self.pos + 3],
+            self.buffer[self.pos + 4],
+            self.buffer[self.pos + 5],
+            self.buffer[self.pos + 6],
+            self.buffer[self.pos + 7],
+        ]);
+        self.pos += 8;
+        Ok(val)
     }
 
-    /// Read sfixed64 (signed fixed64)
+    /// Read float (32-bit, little-endian)
     #[napi]
-    pub fn read_sfixed64(&mut self) -> Result<i64> {
-        self.read_fixed64()
+    pub fn float(&mut self) -> Result<f64> {
+        if self.pos + 4 > self.buffer.len() {
+            return Err(Error::from_reason("Unexpected end of buffer"));
+        }
+        let val = f32::from_le_bytes([
+            self.buffer[self.pos],
+            self.buffer[self.pos + 1],
+            self.buffer[self.pos + 2],
+            self.buffer[self.pos + 3],
+        ]);
+        self.pos += 4;
+        Ok(val as f64)
     }
 
-    /// Read float (32-bit)
+    /// Read double (64-bit, little-endian)
     #[napi]
-    pub fn read_float(&mut self) -> Result<f64> {
-        let bits = self.read_fixed32()?;
-        Ok(f32::from_bits(bits) as f64)
-    }
-
-    /// Read double (64-bit)
-    #[napi]
-    pub fn read_double(&mut self) -> Result<f64> {
+    pub fn double(&mut self) -> Result<f64> {
         if self.pos + 8 > self.buffer.len() {
             return Err(Error::from_reason("Unexpected end of buffer"));
         }
@@ -135,16 +185,25 @@ impl Reader {
         Ok(val)
     }
 
-    /// Read boolean
+    /// Read bytes (length-delimited)
     #[napi]
-    pub fn read_bool(&mut self) -> Result<bool> {
-        let val = self.read_varint32()?;
-        Ok(val != 0)
+    pub fn bytes(&mut self) -> Result<Buffer> {
+        let len = decode_varint32(&self.buffer, &mut self.pos)
+            .map_err(|e| Error::from_reason(e))? as usize;
+        
+        if self.pos + len > self.buffer.len() {
+            return Err(Error::from_reason("Unexpected end of buffer"));
+        }
+        
+        let bytes = self.buffer[self.pos..self.pos + len].to_vec();
+        self.pos += len;
+        
+        Ok(Buffer::from(bytes))
     }
 
-    /// Read string (UTF-8 encoded)
+    /// Read string (UTF-8, length-delimited)
     #[napi]
-    pub fn read_string(&mut self) -> Result<String> {
+    pub fn string(&mut self) -> Result<String> {
         let len = decode_varint32(&self.buffer, &mut self.pos)
             .map_err(|e| Error::from_reason(e))? as usize;
         
@@ -159,31 +218,27 @@ impl Reader {
             .map_err(|_| Error::from_reason("Invalid UTF-8 string"))
     }
 
-    /// Read bytes
+    /// Skip a specific number of bytes
     #[napi]
-    pub fn read_bytes(&mut self) -> Result<Buffer> {
-        let len = decode_varint32(&self.buffer, &mut self.pos)
-            .map_err(|e| Error::from_reason(e))? as usize;
-        
+    pub fn skip(&mut self, length: u32) -> Result<&Self> {
+        let len = length as usize;
         if self.pos + len > self.buffer.len() {
             return Err(Error::from_reason("Unexpected end of buffer"));
         }
-        
-        let bytes = self.buffer[self.pos..self.pos + len].to_vec();
         self.pos += len;
-        
-        Ok(Buffer::from(bytes))
+        Ok(self)
     }
 
     /// Skip a field based on wire type
     #[napi]
-    pub fn skip_type(&mut self, wire_type: u32) -> Result<()> {
+    pub fn skip_type(&mut self, wire_type: u32) -> Result<&Self> {
         let wt = WireType::from_u8(wire_type as u8)
             .ok_or_else(|| Error::from_reason("Invalid wire type"))?;
         
         match wt {
             WireType::Varint => {
-                self.read_varint64()?;
+                decode_varint64(&self.buffer, &mut self.pos)
+                    .map_err(|e| Error::from_reason(e))?;
             }
             WireType::Fixed64 => {
                 if self.pos + 8 > self.buffer.len() {
@@ -210,26 +265,12 @@ impl Reader {
             }
         }
         
-        Ok(())
+        Ok(self)
     }
 
-    /// Check if there are more bytes to read
+    /// Get current position
     #[napi]
-    pub fn has_more(&self) -> bool {
-        self.pos < self.buffer.len()
-    }
-
-    /// Read exact number of bytes (without length prefix)
-    #[napi]
-    pub fn read_raw_bytes(&mut self, length: u32) -> Result<Buffer> {
-        let len = length as usize;
-        if self.pos + len > self.buffer.len() {
-            return Err(Error::from_reason("Unexpected end of buffer"));
-        }
-        
-        let bytes = self.buffer[self.pos..self.pos + len].to_vec();
-        self.pos += len;
-        
-        Ok(Buffer::from(bytes))
+    pub fn pos(&self) -> u32 {
+        self.pos as u32
     }
 }
