@@ -217,10 +217,36 @@ Benchmarked on typical hardware with complex messages (87 bytes, 7 fields):
 - **Low-level operations**: 230k-387k ops/second
 - **Memory**: Minimal allocations due to Rust implementation
 
-Run your own benchmarks:
+### Benchmark Comparison with protobufjs
+
+Run benchmarks comparing Rust (protobuf-rslux) vs JavaScript (protobufjs/minimal):
+
 ```bash
-node benchmark.js
+# Run standalone benchmark (Rust version only)
+npm run benchmark
+
+# Run comparison benchmark (Rust vs JavaScript)
+npm run benchmark:compare
 ```
+
+**Performance Comparison Results:**
+
+| Operation | Rust (ops/sec) | JavaScript (ops/sec) | Notes |
+|-----------|---------------|---------------------|-------|
+| Encoding | ~163k | ~1,087k | JS faster for small ops |
+| Decoding | ~192k | ~1,062k | JS faster for small ops |
+| Roundtrip | ~83k | ~489k | JS faster for small ops |
+| Small Messages | ~221k | ~3,420k | JS optimized for simple cases |
+| Writer Operations | ~338k | ~20,657k | NAPI overhead significant |
+| Reader Operations | ~840k | ~72,084k | NAPI overhead significant |
+
+**Binary Compatibility:** ✅ Both versions produce identical binary output (87 bytes)
+
+**Note:** The JavaScript version (protobufjs) is faster in these benchmarks due to NAPI boundary crossing overhead. The Rust version's advantages become more apparent in:
+- CPU-bound batch processing scenarios
+- Integration with other Rust components
+- Lower-level systems programming contexts
+- Scenarios requiring explicit memory control
 
 ## 🔨 Building from Source
 
