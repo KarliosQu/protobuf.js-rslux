@@ -216,7 +216,7 @@ Benchmarked on typical hardware with complex messages (87 bytes, 7 fields):
 - **Small messages**: ~199k messages/second (198,807 ops/sec)
 - **Low-level Writer operations**: ~313k ops/second (312,500 ops/sec)
 - **Low-level Reader operations**: ~662k ops/second (662,252 ops/sec)
-- **Memory**: Minimal allocations due to Rust implementation (12,052 messages/MB)
+- **Memory Efficiency**: ~12,052 messages per MB of storage (87 bytes per message)
 
 ### Benchmark Comparison with protobufjs
 
@@ -246,7 +246,8 @@ npm run benchmark:compare
 **Throughput Summary:**
 - Rust achieves consistent throughput across message sizes
 - JavaScript version shows higher raw throughput due to no FFI boundary
-- Average comparison ratio: 0.09x (Rust is slower in these micro-benchmarks)
+- Average speedup across all operations: 0.09x (calculated from all 6 benchmark operations)
+- Note: The Rust version is slower in these micro-benchmarks due to NAPI overhead
 
 **Note on Throughput:** The JavaScript version (protobufjs) shows higher throughput in these micro-benchmarks due to NAPI boundary crossing overhead (FFI cost). The Rust version's advantages become more apparent in:
 - CPU-bound batch processing with sustained load
