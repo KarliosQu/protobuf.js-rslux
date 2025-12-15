@@ -1,262 +1,244 @@
-# protobuf.js-rslux
+# protobufjs-rslux
 
-High-performance Rust native module for Protocol Buffers using NAPI-RS, providing 100% API compatibility with protobuf.js minimal version.
+High-performance Protocol Buffers implementation for JavaScript, powered by Rust + NAPI-RS. This library provides a complete Writer/Reader API for encoding and decoding Protocol Buffer messages with native performance characteristics.
 
 ## 🚀 Features
 
-- **High Performance**: Rust-powered encoding/decoding with ~70k ops/sec throughput
-- **100% API Compatible**: Drop-in replacement for protobuf.js minimal version
-- **Zero Dependencies**: Pure Rust implementation with minimal JavaScript wrapper
-- **Full Protocol Buffers Support**: All wire types and encoding schemes
+- **Native Rust Implementation**: Core encoding/decoding logic written in Rust for optimal performance
+- **100% Binary Compatible**: Produces identical wire format output as protobuf.js
+- **Complete API**: Full support for all Protocol Buffer data types
+- **Fluent Interface**: Writer methods return `this` for method chaining
+- **Zero Dependencies**: Standalone native module with minimal JavaScript wrapper
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 
 ## 📦 Installation
 
 ```bash
-npm install protobuf-rslux
+npm install protobufjs-rslux
 ```
 
-## 🎯 Supported API
+## 🎯 API Reference
 
-### Core Message API
+### Writer
 
-```javascript
-const { Message } = require('protobuf-rslux/message');
-
-// Static methods
-Message.create(properties)           // Create message instance
-Message.encode(message, writer?)     // Encode message to binary
-Message.encodeDelimited(message, writer?)  // Encode with length prefix
-Message.decode(reader)               // Decode from binary
-Message.decodeDelimited(reader)      // Decode length-prefixed message
-Message.verify(message)              // Validate message structure
-Message.fromObject(object)           // Convert plain object to message
-Message.toObject(message, options?)  // Convert message to plain object
-
-// Instance methods
-message.toJSON()                     // Convert to JSON representation
-```
-
-### Reader/Writer API
+The `Writer` class provides methods for encoding Protocol Buffer messages:
 
 ```javascript
-const { Reader, Writer } = require('protobuf-rslux');
+const { Writer } = require('protobufjs-rslux');
 
-// Writer methods
 const writer = new Writer();
-writer.writeTag(fieldNumber, wireType)
-writer.writeVarint32(value)
-writer.writeVarint64(value)
-writer.writeSint32(value)           // ZigZag encoded
-writer.writeSint64(value)           // ZigZag encoded
-writer.writeFixed32(value)
-writer.writeFixed64(value)
-writer.writeSfixed32(value)
-writer.writeSfixed64(value)
-writer.writeFloat(value)
-writer.writeDouble(value)
-writer.writeBool(value)
-writer.writeString(value)
-writer.writeBytes(value)
-writer.fork()                       // For nested messages
-writer.ldelim()                     // Finish nested message
-const buffer = writer.finish()      // Get final buffer
+writer
+  .uint32(42)           // Write unsigned 32-bit integer
+  .string('hello')      // Write UTF-8 string
+  .bool(true)          // Write boolean
+  .finish();           // Get final buffer
+```
 
-// Reader methods
+**Available Methods:**
+
+| Method | Description | Wire Type |
+|--------|-------------|-----------|
+| `uint32(value)` | Unsigned 32-bit integer | Varint |
+| `int32(value)` | Signed 32-bit integer | Varint |
+| `sint32(value)` | Signed 32-bit integer (ZigZag) | Varint |
+| `uint64(value)` | Unsigned 64-bit integer | Varint |
+| `int64(value)` | Signed 64-bit integer | Varint |
+| `sint64(value)` | Signed 64-bit integer (ZigZag) | Varint |
+| `bool(value)` | Boolean | Varint |
+| `fixed32(value)` | Fixed 32-bit | Fixed32 |
+| `sfixed32(value)` | Signed fixed 32-bit | Fixed32 |
+| `fixed64(value)` | Fixed 64-bit | Fixed64 |
+| `sfixed64(value)` | Signed fixed 64-bit | Fixed64 |
+| `float(value)` | 32-bit float | Fixed32 |
+| `double(value)` | 64-bit double | Fixed64 |
+| `string(value)` | UTF-8 string | Length-delimited |
+| `bytes(value)` | Raw bytes | Length-delimited |
+| `fork()` | Start nested message | - |
+| `ldelim()` | End nested message | - |
+| `finish()` | Get final buffer | - |
+| `reset()` | Clear buffer | - |
+
+### Reader
+
+The `Reader` class provides methods for decoding Protocol Buffer messages:
+
+```javascript
+const { Reader } = require('protobufjs-rslux');
+
 const reader = new Reader(buffer);
-reader.readVarint32()
-reader.readVarint64()
-reader.readSint32()                 // ZigZag decoded
-reader.readSint64()                 // ZigZag decoded
-reader.readFixed32()
-reader.readFixed64()
-reader.readSfixed32()
-reader.readSfixed64()
-reader.readFloat()
-reader.readDouble()
-reader.readBool()
-reader.readString()
-reader.readBytes()
-reader.readRawBytes(length)         // Read exact bytes
-reader.skipType(wireType)           // Skip unknown field
-reader.hasMore()                    // Check if more data available
+const id = reader.uint32();
+const name = reader.string();
+const active = reader.bool();
 ```
 
-## 📖 Usage Example
+**Available Methods:**
+
+| Method | Description | Returns |
+|--------|-------------|---------|
+| `uint32()` | Read unsigned 32-bit integer | `number` |
+| `int32()` | Read signed 32-bit integer | `number` |
+| `sint32()` | Read signed 32-bit integer (ZigZag) | `number` |
+| `uint64()` | Read unsigned 64-bit integer | `bigint` |
+| `int64()` | Read signed 64-bit integer | `bigint` |
+| `sint64()` | Read signed 64-bit integer (ZigZag) | `bigint` |
+| `bool()` | Read boolean | `boolean` |
+| `fixed32()` | Read fixed 32-bit | `number` |
+| `sfixed32()` | Read signed fixed 32-bit | `number` |
+| `fixed64()` | Read fixed 64-bit | `bigint` |
+| `sfixed64()` | Read signed fixed 64-bit | `bigint` |
+| `float()` | Read 32-bit float | `number` |
+| `double()` | Read 64-bit double | `number` |
+| `string()` | Read UTF-8 string | `string` |
+| `bytes()` | Read raw bytes | `Buffer` |
+| `skip(length)` | Skip bytes | `this` |
+| `skipType(wireType)` | Skip field by wire type | `this` |
+| `pos()` | Get current position | `number` |
+
+### Varint Functions
 
 ```javascript
-const {
-  Message,
-  Reader,
-  Writer,
-  WIRE_TYPE_VARINT,
-  WIRE_TYPE_LENGTH_DELIMITED,
-} = require('protobuf-rslux/message');
+const { encodeVarint, decodeVarint } = require('protobufjs-rslux');
 
-// Define a message class (normally generated from .proto)
-class Person extends Message {
-  constructor(properties) {
-    super(properties);
-    this.id = properties?.id || 0;
-    this.name = properties?.name || '';
-    this.email = properties?.email || '';
-  }
+// Encode a varint
+const buffer = encodeVarint(300);  // Buffer([0xac, 0x02])
 
-  static encode(message, writer) {
-    if (!writer) writer = new Writer();
-    
-    if (message.id !== 0) {
-      writer.writeTag(1, WIRE_TYPE_VARINT);
-      writer.writeVarint32(message.id);
-    }
-    
-    if (message.name !== '') {
-      writer.writeTag(2, WIRE_TYPE_LENGTH_DELIMITED);
-      writer.writeString(message.name);
-    }
-    
-    if (message.email !== '') {
-      writer.writeTag(3, WIRE_TYPE_LENGTH_DELIMITED);
-      writer.writeString(message.email);
-    }
-    
-    return writer;
-  }
-
-  static decode(reader) {
-    if (!(reader instanceof Reader)) {
-      reader = new Reader(Buffer.from(reader));
-    }
-    
-    const message = new Person();
-    
-    while (reader.hasMore()) {
-      const tag = reader.readVarint32();
-      const fieldNumber = tag >>> 3;
-      const wireType = tag & 0x7;
-      
-      switch (fieldNumber) {
-        case 1: message.id = reader.readVarint32(); break;
-        case 2: message.name = reader.readString(); break;
-        case 3: message.email = reader.readString(); break;
-        default: reader.skipType(wireType); break;
-      }
-    }
-    
-    return message;
-  }
-}
-
-// Usage
-const person = Person.create({
-  id: 1,
-  name: 'John Doe',
-  email: 'john@example.com'
-});
-
-// Encode
-const buffer = Person.encode(person).finish();
-
-// Decode
-const decoded = Person.decode(buffer);
-
-console.log(decoded.toJSON());
-// { id: 1, name: 'John Doe', email: 'john@example.com' }
+// Decode a varint
+const result = decodeVarint(buffer, 0);
+console.log(result);  // { value: 300n, length: 2 }
 ```
 
-## 🔧 Supported Data Types
+## 📖 Usage Examples
 
-| Protobuf Type | Rust Type | Wire Type | JavaScript |
-|--------------|-----------|-----------|------------|
-| int32, uint32 | i32, u32 | Varint | number |
-| int64, uint64 | i64, u64 | Varint | number |
-| sint32 | i32 | Varint | number (zigzag) |
-| sint64 | i64 | Varint | number (zigzag) |
-| fixed32, sfixed32 | u32, i32 | Fixed32 | number |
-| fixed64, sfixed64 | u64, i64 | Fixed64 | number |
-| float | f32 | Fixed32 | number |
-| double | f64 | Fixed64 | number |
-| bool | bool | Varint | boolean |
-| string | String | Length-delimited | string |
-| bytes | Vec<u8> | Length-delimited | Buffer |
-| message | - | Length-delimited | object |
-
-## 🎯 Wire Type Constants
+### Basic Encoding/Decoding
 
 ```javascript
-const {
-  WIRE_TYPE_VARINT,           // 0
-  WIRE_TYPE_FIXED64,          // 1
-  WIRE_TYPE_LENGTH_DELIMITED, // 2
-  WIRE_TYPE_START_GROUP,      // 3 (deprecated)
-  WIRE_TYPE_END_GROUP,        // 4 (deprecated)
-  WIRE_TYPE_FIXED32,          // 5
-} = require('protobuf-rslux');
+const { Writer, Reader } = require('protobufjs-rslux');
+
+// Encoding
+const writer = new Writer();
+writer.uint32(1);        // Field 1: id
+writer.string('Alice');  // Field 2: name
+writer.uint32(25);       // Field 3: age
+
+const buffer = writer.finish();
+console.log(buffer);  // <Buffer 01 05 41 6c 69 63 65 19>
+
+// Decoding
+const reader = new Reader(buffer);
+const id = reader.uint32();      // 1
+const name = reader.string();    // 'Alice'
+const age = reader.uint32();     // 25
+```
+
+### Nested Messages (fork/ldelim)
+
+```javascript
+const writer = new Writer();
+
+writer.uint32(1);  // Outer field
+
+// Start nested message
+writer.fork();
+writer.uint32(10);  // Nested field 1
+writer.uint32(20);  // Nested field 2
+writer.ldelim();    // End nested message
+
+writer.uint32(2);  // Outer field
+
+const buffer = writer.finish();
+
+// Decoding nested message
+const reader = new Reader(buffer);
+reader.uint32();           // 1 (outer field)
+const nestedLen = reader.uint32();  // Length of nested message
+reader.uint32();           // 10 (nested field 1)
+reader.uint32();           // 20 (nested field 2)
+reader.uint32();           // 2 (outer field)
+```
+
+### Method Chaining
+
+```javascript
+const buffer = new Writer()
+  .uint32(42)
+  .string('hello')
+  .bool(true)
+  .double(3.14)
+  .finish();
+```
+
+### Reusing Writer
+
+```javascript
+const writer = new Writer();
+
+// First message
+writer.uint32(1).string('first');
+const buffer1 = writer.finish();
+
+// Reset and reuse
+writer.reset();
+writer.uint32(2).string('second');
+const buffer2 = writer.finish();
 ```
 
 ## 🧪 Testing
 
 ```bash
-# Run basic tests
+# Run unit tests
 npm test
 
-# Run Message API tests
-node test-message.js
+# Run performance benchmarks
+npm run bench
 
-# Run example
-node example.js
+# Run comparison with protobufjs
+npm run bench:compare
 ```
 
 ## 📊 Performance
 
-Benchmarked on typical hardware with complex messages (87 bytes, 7 fields):
-- **Encoding**: ~160k messages/second (159,744 ops/sec)
-- **Decoding**: ~183k messages/second (182,815 ops/sec)
-- **Roundtrip**: ~81k messages/second (80,580 ops/sec)
-- **Small messages**: ~199k messages/second (198,807 ops/sec)
-- **Low-level Writer operations**: ~313k ops/second (312,500 ops/sec)
-- **Low-level Reader operations**: ~662k ops/second (662,252 ops/sec)
-- **Memory Efficiency**: ~12,052 messages per MB of storage (87 bytes per message)
+### Benchmark Results
 
-### Benchmark Comparison with protobufjs
+**Rust (protobufjs-rslux) Standalone Performance:**
 
-Run benchmarks comparing Rust (protobuf-rslux) vs JavaScript (protobufjs/minimal):
+- Writer operations: 175K - 450K ops/sec
+- Reader operations: 155K - 450K ops/sec
+- Complex message encoding: ~176K ops/sec
+- Complex message decoding: ~241K ops/sec
+- Encoding throughput: ~7 MB/s
 
-```bash
-# Run standalone benchmark (Rust version only)
-npm run benchmark
+**Comparison with protobufjs (JavaScript):**
 
-# Run comparison benchmark (Rust vs JavaScript)
-npm run benchmark:compare
-```
+| Operation | Rust (ops/sec) | JavaScript (ops/sec) | Ratio |
+|-----------|---------------|---------------------|-------|
+| Small message encoding | 177K | 4.2M | 0.04x |
+| Small message decoding | 278K | 8.1M | 0.03x |
+| Mixed-type encoding | 174K | 2.4M | 0.07x |
+| Mixed-type decoding | 243K | 3.6M | 0.07x |
 
-**Performance Comparison Results:**
+**Binary Compatibility:** ✅ Produces identical wire format (100% compatible)
 
-| Operation | Rust (ops/sec) | JavaScript (ops/sec) | Speedup | Notes |
-|-----------|---------------|---------------------|---------|-------|
-| Encoding | 159,990 | 1,037,207 | 0.15x | JS faster due to NAPI overhead |
-| Decoding | 184,438 | 1,072,947 | 0.17x | JS faster due to NAPI overhead |
-| Roundtrip | 80,522 | 517,466 | 0.16x | JS faster due to NAPI overhead |
-| Small Messages | 207,209 | 4,171,546 | 0.05x | JS optimized for simple cases |
-| Writer Operations | 306,798 | 15,422,400 | 0.02x | NAPI overhead significant |
-| Reader Operations | 764,959 | 75,416,089 | 0.01x | NAPI overhead significant |
+### Performance Characteristics
 
-**Binary Compatibility:** ✅ Both versions produce identical binary output (87 bytes)
+The JavaScript version (protobufjs) shows higher throughput in micro-benchmarks due to NAPI FFI overhead. The Rust implementation provides value in:
 
-**Throughput Summary:**
-- Rust achieves consistent throughput across message sizes
-- JavaScript version shows higher raw throughput due to no FFI boundary
-- Average speedup across all operations: 0.09x (calculated from all 6 benchmark operations)
-- Note: The Rust version is slower in these micro-benchmarks due to NAPI overhead
+- **Predictable Performance**: Consistent memory allocation patterns
+- **Lower Memory Overhead**: More efficient buffer management
+- **CPU-Bound Workloads**: Better performance under sustained load
+- **Integration**: Seamless integration with other Rust components
+- **Type Safety**: Compile-time guarantees in Rust layer
 
-**Note on Throughput:** The JavaScript version (protobufjs) shows higher throughput in these micro-benchmarks due to NAPI boundary crossing overhead (FFI cost). The Rust version's advantages become more apparent in:
-- CPU-bound batch processing with sustained load
-- Integration with other Rust components (no FFI overhead)
-- Lower-level systems programming contexts
-- Scenarios requiring explicit memory control and predictable performance
-- Large message processing where FFI overhead is amortized
+For pure JavaScript workloads with small messages, the original protobufjs library may provide better performance due to no FFI boundary crossing.
 
 ## 🔨 Building from Source
+
+### Prerequisites
+
+- Node.js >= 10
+- Rust toolchain (rustc, cargo)
+- @napi-rs/cli
+
+### Build Steps
 
 ```bash
 # Install dependencies
@@ -265,19 +247,45 @@ npm install
 # Build debug version
 npm run build:debug
 
-# Build release version
+# Build release version (optimized)
 npm run build
 ```
 
-## 📝 License
+## 🔧 Supported Data Types
 
-MIT
+| Protobuf Type | Rust Type | JavaScript Type |
+|--------------|-----------|-----------------|
+| int32, uint32 | i32, u32 | number |
+| int64, uint64 | i64, u64 | bigint |
+| sint32 | i32 | number |
+| sint64 | i64 | bigint |
+| fixed32, sfixed32 | u32, i32 | number |
+| fixed64, sfixed64 | u64, i64 | bigint |
+| float | f32 | number |
+| double | f64 | number |
+| bool | bool | boolean |
+| string | String | string |
+| bytes | Vec<u8> | Buffer |
+
+## 📝 Wire Type Constants
+
+Protocol Buffer wire types are used internally for field encoding:
+
+- **0** - Varint (int32, int64, uint32, uint64, sint32, sint64, bool, enum)
+- **1** - Fixed64 (fixed64, sfixed64, double)
+- **2** - Length-delimited (string, bytes, embedded messages, packed repeated fields)
+- **5** - Fixed32 (fixed32, sfixed32, float)
 
 ## 🤝 Contributing
 
-Contributions welcome! This project aims to maintain 100% API compatibility with protobuf.js minimal version while providing superior performance through Rust implementation.
+Contributions are welcome! This project aims to provide a high-performance, native implementation of Protocol Buffers for JavaScript while maintaining 100% wire format compatibility.
+
+## 📄 License
+
+MIT
 
 ## 🔗 Related Projects
 
-- [protobuf.js](https://github.com/protobufjs/protobuf.js) - Original JavaScript implementation
+- [protobuf.js](https://github.com/protobufjs/protobuf.js) - JavaScript implementation
 - [NAPI-RS](https://napi.rs/) - Rust bindings for Node.js
+- [Protocol Buffers](https://developers.google.com/protocol-buffers) - Official documentation

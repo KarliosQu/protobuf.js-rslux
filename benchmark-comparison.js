@@ -1,436 +1,416 @@
 /**
- * Benchmark comparison between protobuf-rslux (Rust) and protobufjs (JavaScript)
- * 运行benchmark，输出rust修改版和原版的比较结果
+ * Performance comparison benchmark: protobufjs-rslux (Rust) vs protobufjs (JavaScript)
+ * Compares encoding and decoding performance across various scenarios
  */
 
-// Import Rust version (protobuf-rslux)
-const {
-  Message: RustMessage,
-  Reader: RustReader,
-  Writer: RustWriter,
-  WIRE_TYPE_VARINT: RUST_VARINT,
-  WIRE_TYPE_LENGTH_DELIMITED: RUST_LENGTH_DELIMITED,
-} = require('./message.js');
-
-// Import original JavaScript version (protobufjs)
+const { Writer: RustWriter, Reader: RustReader } = require('./index.js');
 const protobuf = require('protobufjs/minimal');
-const JSReader = protobuf.Reader;
-const JSWriter = protobuf.Writer;
 
-console.log('📊 Benchmark Comparison: Rust vs JavaScript');
-console.log('='.repeat(70));
-console.log('Rust Version: protobuf-rslux (NAPI-RS native module)');
-console.log('JavaScript Version: protobufjs/minimal');
-console.log('='.repeat(70));
-console.log('');
-
-// Define Rust version message class
-class RustBenchmarkMessage extends RustMessage {
-  constructor(properties) {
-    super(properties);
-    this.id = properties?.id || 0;
-    this.name = properties?.name || '';
-    this.email = properties?.email || '';
-    this.age = properties?.age || 0;
-    this.score = properties?.score || 0.0;
-    this.active = properties?.active || false;
-    this.tags = properties?.tags || [];
-  }
-
-  static encode(message, writer) {
-    if (!writer) writer = new RustWriter();
-    
-    if (message.id !== 0) {
-      writer.writeTag(1, RUST_VARINT);
-      writer.writeVarint32(message.id);
-    }
-    
-    if (message.name !== '') {
-      writer.writeTag(2, RUST_LENGTH_DELIMITED);
-      writer.writeString(message.name);
-    }
-    
-    if (message.email !== '') {
-      writer.writeTag(3, RUST_LENGTH_DELIMITED);
-      writer.writeString(message.email);
-    }
-    
-    if (message.age !== 0) {
-      writer.writeTag(4, RUST_VARINT);
-      writer.writeVarint32(message.age);
-    }
-    
-    if (message.score !== 0.0) {
-      writer.writeTag(5, 0x01); // WIRE_TYPE_FIXED64
-      writer.writeDouble(message.score);
-    }
-    
-    if (message.active !== false) {
-      writer.writeTag(6, RUST_VARINT);
-      writer.writeBool(message.active);
-    }
-    
-    if (message.tags && message.tags.length) {
-      for (const tag of message.tags) {
-        writer.writeTag(7, RUST_LENGTH_DELIMITED);
-        writer.writeString(tag);
-      }
-    }
-    
-    return writer;
-  }
-
-  static decode(reader) {
-    if (!(reader instanceof RustReader)) {
-      reader = new RustReader(Buffer.from(reader));
-    }
-    
-    const message = new RustBenchmarkMessage();
-    
-    while (reader.hasMore()) {
-      const tag = reader.readVarint32();
-      const fieldNumber = tag >>> 3;
-      const wireType = tag & 0x7;
-      
-      switch (fieldNumber) {
-        case 1: message.id = reader.readVarint32(); break;
-        case 2: message.name = reader.readString(); break;
-        case 3: message.email = reader.readString(); break;
-        case 4: message.age = reader.readVarint32(); break;
-        case 5: message.score = reader.readDouble(); break;
-        case 6: message.active = reader.readBool(); break;
-        case 7:
-          if (!message.tags) message.tags = [];
-          message.tags.push(reader.readString());
-          break;
-        default: reader.skipType(wireType); break;
-      }
-    }
-    
-    return message;
-  }
+// Helper to format numbers
+function formatNumber(num) {
+  return num.toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
 
-// Define JavaScript version message class (using protobufjs)
-class JSBenchmarkMessage {
-  constructor(properties) {
-    this.id = properties?.id || 0;
-    this.name = properties?.name || '';
-    this.email = properties?.email || '';
-    this.age = properties?.age || 0;
-    this.score = properties?.score || 0.0;
-    this.active = properties?.active || false;
-    this.tags = properties?.tags || [];
-  }
-
-  static encode(message, writer) {
-    if (!writer) writer = JSWriter.create();
-    
-    if (message.id !== 0) {
-      writer.uint32(8).int32(message.id);
-    }
-    
-    if (message.name !== '') {
-      writer.uint32(18).string(message.name);
-    }
-    
-    if (message.email !== '') {
-      writer.uint32(26).string(message.email);
-    }
-    
-    if (message.age !== 0) {
-      writer.uint32(32).int32(message.age);
-    }
-    
-    if (message.score !== 0.0) {
-      writer.uint32(41).double(message.score);
-    }
-    
-    if (message.active !== false) {
-      writer.uint32(48).bool(message.active);
-    }
-    
-    if (message.tags && message.tags.length) {
-      for (const tag of message.tags) {
-        writer.uint32(58).string(tag);
-      }
-    }
-    
-    return writer;
-  }
-
-  static decode(reader, length) {
-    if (!(reader instanceof JSReader)) {
-      reader = JSReader.create(Buffer.from(reader));
-    }
-    
-    const message = new JSBenchmarkMessage();
-    const end = length === undefined ? reader.len : reader.pos + length;
-    
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      const fieldNumber = tag >>> 3;
-      
-      switch (fieldNumber) {
-        case 1: message.id = reader.int32(); break;
-        case 2: message.name = reader.string(); break;
-        case 3: message.email = reader.string(); break;
-        case 4: message.age = reader.int32(); break;
-        case 5: message.score = reader.double(); break;
-        case 6: message.active = reader.bool(); break;
-        case 7:
-          if (!message.tags) message.tags = [];
-          message.tags.push(reader.string());
-          break;
-        default:
-          reader.skipType(tag & 7);
-          break;
-      }
-    }
-    
-    return message;
-  }
-}
-
-// Create test data
-const testData = {
-  id: 12345,
-  name: 'John Doe',
-  email: 'john.doe@example.com',
-  age: 30,
-  score: 95.5,
-  active: true,
-  tags: ['developer', 'rust', 'javascript', 'protobuf'],
-};
-
-console.log('Test Message Configuration:');
-console.log('  Fields: 7 (mixed types)');
-console.log('  Repeated fields: 4 strings');
-console.log('  Data:', JSON.stringify(testData, null, 2));
-console.log('');
-
-// Benchmark configuration
-const ITERATIONS = 100000;
-const WARMUP = 10000;
-
-function benchmark(name, fn) {
+// Helper to measure performance
+function benchmark(name, fn, iterations = 100000) {
   // Warmup
-  for (let i = 0; i < WARMUP; i++) {
-    fn();
-  }
+  for (let i = 0; i < 1000; i++) fn();
   
-  // Collect garbage before benchmarking
+  // Collect garbage before benchmark
   if (global.gc) {
     global.gc();
   }
   
-  // Actual benchmark
+  // Measure
   const start = process.hrtime.bigint();
-  for (let i = 0; i < ITERATIONS; i++) {
+  for (let i = 0; i < iterations; i++) {
     fn();
   }
   const end = process.hrtime.bigint();
-  const elapsed = Number(end - start) / 1_000_000; // Convert to milliseconds
   
-  const opsPerSec = Math.round(ITERATIONS / elapsed * 1000);
-  const msPerOp = (elapsed / ITERATIONS).toFixed(4);
+  const durationMs = Number(end - start) / 1000000;
+  const opsPerSec = (iterations / durationMs) * 1000;
   
-  return { elapsed, opsPerSec, msPerOp };
+  return opsPerSec;
 }
 
-// Benchmark 1: Message Encoding
-console.log('Benchmark 1: Message Encoding');
-console.log('-'.repeat(70));
+function comparePerformance(description, rustFn, jsFn, iterations = 100000) {
+  console.log(`\n${description}`);
+  
+  const rustOps = benchmark('rust', rustFn, iterations);
+  const jsOps = benchmark('js', jsFn, iterations);
+  
+  const speedup = rustOps / jsOps;
+  const winner = speedup > 1 ? 'Rust' : 'JavaScript';
+  const factor = speedup > 1 ? speedup : (1 / speedup);
+  
+  console.log(`  Rust (protobufjs-rslux)    ${formatNumber(rustOps).padStart(15)} ops/sec`);
+  console.log(`  JavaScript (protobufjs)    ${formatNumber(jsOps).padStart(15)} ops/sec`);
+  
+  if (Math.abs(speedup - 1) < 0.05) {
+    console.log(`  ⚖️  Similar performance (within 5%)`);
+  } else {
+    console.log(`  ⚡ ${winner} is ${factor.toFixed(2)}x faster`);
+  }
+  
+  return { rustOps, jsOps, speedup };
+}
 
-const rustTestMessage = new RustBenchmarkMessage(testData);
-const rustEncodeResults = benchmark('Rust Encode', () => {
-  RustBenchmarkMessage.encode(rustTestMessage).finish();
-});
+console.log('\n╔════════════════════════════════════════════════════════════════╗');
+console.log('║     protobufjs-rslux vs protobufjs Comparison Benchmark       ║');
+console.log('╚════════════════════════════════════════════════════════════════╝');
 
-const jsTestMessage = new JSBenchmarkMessage(testData);
-const jsEncodeResults = benchmark('JS Encode', () => {
-  JSBenchmarkMessage.encode(jsTestMessage).finish();
-});
+console.log('\n=== Varint Encoding ===');
 
-console.log(`Rust (protobuf-rslux):`);
-console.log(`  Time: ${rustEncodeResults.elapsed.toFixed(2)} ms`);
-console.log(`  Throughput: ${rustEncodeResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log(`  Latency: ${rustEncodeResults.msPerOp} ms/op`);
-console.log('');
-console.log(`JavaScript (protobufjs):`);
-console.log(`  Time: ${jsEncodeResults.elapsed.toFixed(2)} ms`);
-console.log(`  Throughput: ${jsEncodeResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log(`  Latency: ${jsEncodeResults.msPerOp} ms/op`);
-console.log('');
-const encodeSpeedup = (jsEncodeResults.elapsed / rustEncodeResults.elapsed).toFixed(2);
-console.log(`⚡ Speedup: ${encodeSpeedup}x faster`);
-console.log('');
+comparePerformance(
+  'Small varint (1 byte)',
+  () => {
+    const w = new RustWriter();
+    w.uint32(42);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.uint32(42);
+    w.finish();
+  }
+);
 
-// Benchmark 2: Message Decoding
-console.log('Benchmark 2: Message Decoding');
-console.log('-'.repeat(70));
+comparePerformance(
+  'Medium varint (2 bytes)',
+  () => {
+    const w = new RustWriter();
+    w.uint32(12345);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.uint32(12345);
+    w.finish();
+  }
+);
 
-const rustEncodedBuffer = RustBenchmarkMessage.encode(rustTestMessage).finish();
-const rustDecodeResults = benchmark('Rust Decode', () => {
-  RustBenchmarkMessage.decode(rustEncodedBuffer);
-});
+comparePerformance(
+  'Large varint (5 bytes)',
+  () => {
+    const w = new RustWriter();
+    w.uint32(0xFFFFFFFF);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.uint32(0xFFFFFFFF);
+    w.finish();
+  }
+);
 
-const jsEncodedBuffer = JSBenchmarkMessage.encode(jsTestMessage).finish();
-const jsDecodeResults = benchmark('JS Decode', () => {
-  JSBenchmarkMessage.decode(jsEncodedBuffer);
-});
+console.log('\n=== String Encoding ===');
 
-console.log(`Rust (protobuf-rslux):`);
-console.log(`  Time: ${rustDecodeResults.elapsed.toFixed(2)} ms`);
-console.log(`  Throughput: ${rustDecodeResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log(`  Latency: ${rustDecodeResults.msPerOp} ms/op`);
-console.log('');
-console.log(`JavaScript (protobufjs):`);
-console.log(`  Time: ${jsDecodeResults.elapsed.toFixed(2)} ms`);
-console.log(`  Throughput: ${jsDecodeResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log(`  Latency: ${jsDecodeResults.msPerOp} ms/op`);
-console.log('');
-const decodeSpeedup = (jsDecodeResults.elapsed / rustDecodeResults.elapsed).toFixed(2);
-console.log(`⚡ Speedup: ${decodeSpeedup}x faster`);
-console.log('');
+comparePerformance(
+  'Short string (5 chars)',
+  () => {
+    const w = new RustWriter();
+    w.string('hello');
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.string('hello');
+    w.finish();
+  }
+);
 
-// Benchmark 3: Full Roundtrip
-console.log('Benchmark 3: Encode + Decode Roundtrip');
-console.log('-'.repeat(70));
+comparePerformance(
+  'Medium string (30 chars)',
+  () => {
+    const w = new RustWriter();
+    w.string('The quick brown fox jumps over');
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.string('The quick brown fox jumps over');
+    w.finish();
+  }
+);
 
-const rustRoundtripResults = benchmark('Rust Roundtrip', () => {
-  const buf = RustBenchmarkMessage.encode(rustTestMessage).finish();
-  RustBenchmarkMessage.decode(buf);
-});
+comparePerformance(
+  'Long string (100 chars)',
+  () => {
+    const str = 'A'.repeat(100);
+    const w = new RustWriter();
+    w.string(str);
+    w.finish();
+  },
+  () => {
+    const str = 'A'.repeat(100);
+    const w = protobuf.Writer.create();
+    w.string(str);
+    w.finish();
+  }
+);
 
-const jsRoundtripResults = benchmark('JS Roundtrip', () => {
-  const buf = JSBenchmarkMessage.encode(jsTestMessage).finish();
-  JSBenchmarkMessage.decode(buf);
-});
+console.log('\n=== Fixed-Size Types ===');
 
-console.log(`Rust (protobuf-rslux):`);
-console.log(`  Time: ${rustRoundtripResults.elapsed.toFixed(2)} ms`);
-console.log(`  Throughput: ${rustRoundtripResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log(`  Latency: ${rustRoundtripResults.msPerOp} ms/op`);
-console.log('');
-console.log(`JavaScript (protobufjs):`);
-console.log(`  Time: ${jsRoundtripResults.elapsed.toFixed(2)} ms`);
-console.log(`  Throughput: ${jsRoundtripResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log(`  Latency: ${jsRoundtripResults.msPerOp} ms/op`);
-console.log('');
-const roundtripSpeedup = (jsRoundtripResults.elapsed / rustRoundtripResults.elapsed).toFixed(2);
-console.log(`⚡ Speedup: ${roundtripSpeedup}x faster`);
-console.log('');
+comparePerformance(
+  'Fixed32',
+  () => {
+    const w = new RustWriter();
+    w.fixed32(0x12345678);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.fixed32(0x12345678);
+    w.finish();
+  }
+);
 
-// Benchmark 4: Small Message
-console.log('Benchmark 4: Small Message (1 field)');
-console.log('-'.repeat(70));
+comparePerformance(
+  'Fixed64',
+  () => {
+    const w = new RustWriter();
+    w.fixed64(0x123456789abcdef0);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.fixed64(0x123456789abcdef0);
+    w.finish();
+  }
+);
 
-const smallData = { id: 1 };
-const rustSmallMessage = new RustBenchmarkMessage(smallData);
-const jsSmallMessage = new JSBenchmarkMessage(smallData);
+comparePerformance(
+  'Float',
+  () => {
+    const w = new RustWriter();
+    w.float(3.14159);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.float(3.14159);
+    w.finish();
+  }
+);
 
-const rustSmallResults = benchmark('Rust Small', () => {
-  const buf = RustBenchmarkMessage.encode(rustSmallMessage).finish();
-  RustBenchmarkMessage.decode(buf);
-});
+comparePerformance(
+  'Double',
+  () => {
+    const w = new RustWriter();
+    w.double(3.14159265359);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.double(3.14159265359);
+    w.finish();
+  }
+);
 
-const jsSmallResults = benchmark('JS Small', () => {
-  const buf = JSBenchmarkMessage.encode(jsSmallMessage).finish();
-  JSBenchmarkMessage.decode(buf);
-});
+console.log('\n=== Complex Messages ===');
 
-console.log(`Rust (protobuf-rslux):`);
-console.log(`  Throughput: ${rustSmallResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-console.log(`JavaScript (protobufjs):`);
-console.log(`  Throughput: ${jsSmallResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-const smallSpeedup = (jsSmallResults.elapsed / rustSmallResults.elapsed).toFixed(2);
-console.log(`⚡ Speedup: ${smallSpeedup}x faster`);
-console.log('');
+const results = [];
 
-// Benchmark 5: Low-level Writer/Reader Operations
-console.log('Benchmark 5: Low-level Writer/Reader Operations');
-console.log('-'.repeat(70));
+results.push(comparePerformance(
+  'Small Message (10 fields) - Encoding',
+  () => {
+    const w = new RustWriter();
+    for (let i = 0; i < 10; i++) {
+      w.uint32(i);
+    }
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    for (let i = 0; i < 10; i++) {
+      w.uint32(i);
+    }
+    w.finish();
+  }
+));
 
-const rustWriterResults = benchmark('Rust Writer', () => {
+// Prepare buffers for decoding tests
+const rustSmallBuf = (() => {
   const w = new RustWriter();
-  w.writeVarint32(12345);
-  w.finish();
-});
+  for (let i = 0; i < 10; i++) w.uint32(i);
+  return w.finish();
+})();
 
-const jsWriterResults = benchmark('JS Writer', () => {
-  const w = JSWriter.create();
-  w.int32(12345);
-  w.finish();
-});
+const jsSmallBuf = (() => {
+  const w = protobuf.Writer.create();
+  for (let i = 0; i < 10; i++) w.uint32(i);
+  return w.finish();
+})();
 
-console.log(`Rust Writer (varint32):`);
-console.log(`  Throughput: ${rustWriterResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-console.log(`JavaScript Writer (varint32):`);
-console.log(`  Throughput: ${jsWriterResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-const writerSpeedup = (jsWriterResults.elapsed / rustWriterResults.elapsed).toFixed(2);
-console.log(`⚡ Speedup: ${writerSpeedup}x faster`);
-console.log('');
+results.push(comparePerformance(
+  'Small Message (10 fields) - Decoding',
+  () => {
+    const r = new RustReader(rustSmallBuf);
+    for (let i = 0; i < 10; i++) {
+      r.uint32();
+    }
+  },
+  () => {
+    const r = protobuf.Reader.create(jsSmallBuf);
+    for (let i = 0; i < 10; i++) {
+      r.uint32();
+    }
+  }
+));
 
-const rustReaderBuffer = Buffer.from([0xB9, 0x60]); // 12345 encoded
-const rustReaderResults = benchmark('Rust Reader', () => {
-  const r = new RustReader(rustReaderBuffer);
-  r.readVarint32();
-});
+results.push(comparePerformance(
+  'Medium Message (100 fields) - Encoding',
+  () => {
+    const w = new RustWriter();
+    for (let i = 0; i < 100; i++) {
+      w.uint32(i);
+    }
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    for (let i = 0; i < 100; i++) {
+      w.uint32(i);
+    }
+    w.finish();
+  },
+  10000
+));
 
-const jsReaderBuffer = Buffer.from([0xB9, 0x60]);
-const jsReaderResults = benchmark('JS Reader', () => {
-  const r = JSReader.create(jsReaderBuffer);
-  r.int32();
-});
+const rustMediumBuf = (() => {
+  const w = new RustWriter();
+  for (let i = 0; i < 100; i++) w.uint32(i);
+  return w.finish();
+})();
 
-console.log(`Rust Reader (varint32):`);
-console.log(`  Throughput: ${rustReaderResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-console.log(`JavaScript Reader (varint32):`);
-console.log(`  Throughput: ${jsReaderResults.opsPerSec.toLocaleString()} ops/sec`);
-console.log('');
-const readerSpeedup = (jsReaderResults.elapsed / rustReaderResults.elapsed).toFixed(2);
-console.log(`⚡ Speedup: ${readerSpeedup}x faster`);
-console.log('');
+const jsMediumBuf = (() => {
+  const w = protobuf.Writer.create();
+  for (let i = 0; i < 100; i++) w.uint32(i);
+  return w.finish();
+})();
 
-// Overall Summary
-console.log('='.repeat(70));
-console.log('📊 OVERALL COMPARISON SUMMARY');
-console.log('='.repeat(70));
-console.log('');
-console.log('Performance Improvements (Rust vs JavaScript):');
-console.log('');
-console.log(`  Encoding:           ${rustEncodeResults.opsPerSec.toLocaleString()} vs ${jsEncodeResults.opsPerSec.toLocaleString()} ops/sec  (${encodeSpeedup}x)`);
-console.log(`  Decoding:           ${rustDecodeResults.opsPerSec.toLocaleString()} vs ${jsDecodeResults.opsPerSec.toLocaleString()} ops/sec  (${decodeSpeedup}x)`);
-console.log(`  Roundtrip:          ${rustRoundtripResults.opsPerSec.toLocaleString()} vs ${jsRoundtripResults.opsPerSec.toLocaleString()} ops/sec  (${roundtripSpeedup}x)`);
-console.log(`  Small Messages:     ${rustSmallResults.opsPerSec.toLocaleString()} vs ${jsSmallResults.opsPerSec.toLocaleString()} ops/sec  (${smallSpeedup}x)`);
-console.log(`  Writer Operations:  ${rustWriterResults.opsPerSec.toLocaleString()} vs ${jsWriterResults.opsPerSec.toLocaleString()} ops/sec  (${writerSpeedup}x)`);
-console.log(`  Reader Operations:  ${rustReaderResults.opsPerSec.toLocaleString()} vs ${jsReaderResults.opsPerSec.toLocaleString()} ops/sec  (${readerSpeedup}x)`);
-console.log('');
+results.push(comparePerformance(
+  'Medium Message (100 fields) - Decoding',
+  () => {
+    const r = new RustReader(rustMediumBuf);
+    for (let i = 0; i < 100; i++) {
+      r.uint32();
+    }
+  },
+  () => {
+    const r = protobuf.Reader.create(jsMediumBuf);
+    for (let i = 0; i < 100; i++) {
+      r.uint32();
+    }
+  },
+  10000
+));
 
-// Calculate average speedup
-const avgSpeedup = (
-  parseFloat(encodeSpeedup) +
-  parseFloat(decodeSpeedup) +
-  parseFloat(roundtripSpeedup) +
-  parseFloat(smallSpeedup) +
-  parseFloat(writerSpeedup) +
-  parseFloat(readerSpeedup)
-) / 6;
+// Mixed-type message
+results.push(comparePerformance(
+  'Mixed-Type Message - Encoding',
+  () => {
+    const w = new RustWriter();
+    w.uint32(42);
+    w.string('John Doe');
+    w.uint32(30);
+    w.string('john@example.com');
+    w.bool(true);
+    w.double(1234.56);
+    w.fixed32(0xdeadbeef);
+    w.finish();
+  },
+  () => {
+    const w = protobuf.Writer.create();
+    w.uint32(42);
+    w.string('John Doe');
+    w.uint32(30);
+    w.string('john@example.com');
+    w.bool(true);
+    w.double(1234.56);
+    w.fixed32(0xdeadbeef);
+    w.finish();
+  }
+));
 
-console.log(`🚀 Average Performance Improvement: ${avgSpeedup.toFixed(2)}x faster`);
-console.log('');
-console.log('Message Size Comparison:');
-console.log(`  Rust encoded size:  ${rustEncodedBuffer.length} bytes`);
-console.log(`  JS encoded size:    ${jsEncodedBuffer.length} bytes`);
-console.log(`  Binary compatible:  ${Buffer.compare(rustEncodedBuffer, jsEncodedBuffer) === 0 ? '✅ Yes' : '❌ No'}`);
-console.log('');
-console.log('🎉 Benchmark comparison completed!');
-console.log('');
-console.log('Note: Run with --expose-gc flag for more accurate results:');
-console.log('  node --expose-gc benchmark-comparison.js');
+const rustMixedBuf = (() => {
+  const w = new RustWriter();
+  w.uint32(42);
+  w.string('John Doe');
+  w.uint32(30);
+  w.string('john@example.com');
+  w.bool(true);
+  w.double(1234.56);
+  w.fixed32(0xdeadbeef);
+  return w.finish();
+})();
+
+const jsMixedBuf = (() => {
+  const w = protobuf.Writer.create();
+  w.uint32(42);
+  w.string('John Doe');
+  w.uint32(30);
+  w.string('john@example.com');
+  w.bool(true);
+  w.double(1234.56);
+  w.fixed32(0xdeadbeef);
+  return w.finish();
+})();
+
+results.push(comparePerformance(
+  'Mixed-Type Message - Decoding',
+  () => {
+    const r = new RustReader(rustMixedBuf);
+    r.uint32();
+    r.string();
+    r.uint32();
+    r.string();
+    r.bool();
+    r.double();
+    r.fixed32();
+  },
+  () => {
+    const r = protobuf.Reader.create(jsMixedBuf);
+    r.uint32();
+    r.string();
+    r.uint32();
+    r.string();
+    r.bool();
+    r.double();
+    r.fixed32();
+  }
+));
+
+console.log('\n╔════════════════════════════════════════════════════════════════╗');
+console.log('║                       Summary Statistics                       ║');
+console.log('╚════════════════════════════════════════════════════════════════╝\n');
+
+// Calculate average speedup for complex messages
+const avgSpeedup = results.reduce((sum, r) => sum + r.speedup, 0) / results.length;
+const encodingTests = results.filter((_, i) => i % 2 === 0);
+const decodingTests = results.filter((_, i) => i % 2 === 1);
+
+const avgEncodingSpeedup = encodingTests.reduce((sum, r) => sum + r.speedup, 0) / encodingTests.length;
+const avgDecodingSpeedup = decodingTests.reduce((sum, r) => sum + r.speedup, 0) / decodingTests.length;
+
+console.log(`Average Performance Across Complex Message Tests:`);
+console.log(`  Encoding: ${avgEncodingSpeedup >= 1 ? `${avgEncodingSpeedup.toFixed(2)}x faster` : `${(1/avgEncodingSpeedup).toFixed(2)}x slower`} (Rust vs JS)`);
+console.log(`  Decoding: ${avgDecodingSpeedup >= 1 ? `${avgDecodingSpeedup.toFixed(2)}x faster` : `${(1/avgDecodingSpeedup).toFixed(2)}x slower`} (Rust vs JS)`);
+console.log(`  Overall: ${avgSpeedup >= 1 ? `${avgSpeedup.toFixed(2)}x faster` : `${(1/avgSpeedup).toFixed(2)}x slower`} (Rust vs JS)`);
+
+console.log('\n✅ Binary Compatibility Check:');
+console.log(`  Rust message size: ${rustMixedBuf.length} bytes`);
+console.log(`  JavaScript message size: ${jsMixedBuf.length} bytes`);
+console.log(`  ${rustMixedBuf.equals(jsMixedBuf) ? '✓ Identical binary output' : '✗ Binary mismatch'}`);
+
+console.log('\n╔════════════════════════════════════════════════════════════════╗');
+console.log('║                     Benchmark Complete                         ║');
+console.log('╚════════════════════════════════════════════════════════════════╝\n');
+
+console.log('Note: Performance differences are expected due to FFI overhead.');
+console.log('Rust advantages become more apparent with:');
+console.log('  - Sustained batch processing');
+console.log('  - Integration with other Rust components');
+console.log('  - Predictable memory usage patterns');
+console.log('  - Large message processing where FFI overhead is amortized\n');
