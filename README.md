@@ -210,12 +210,13 @@ node example.js
 ## 📊 Performance
 
 Benchmarked on typical hardware with complex messages (87 bytes, 7 fields):
-- **Encoding**: ~95k messages/second
-- **Decoding**: ~111k messages/second  
-- **Roundtrip**: ~48k messages/second
-- **Small messages**: ~128k messages/second
-- **Low-level operations**: 230k-387k ops/second
-- **Memory**: Minimal allocations due to Rust implementation
+- **Encoding**: ~160k messages/second (159,744 ops/sec)
+- **Decoding**: ~183k messages/second (182,815 ops/sec)
+- **Roundtrip**: ~81k messages/second (80,580 ops/sec)
+- **Small messages**: ~199k messages/second (198,807 ops/sec)
+- **Low-level Writer operations**: ~313k ops/second (312,500 ops/sec)
+- **Low-level Reader operations**: ~662k ops/second (662,252 ops/sec)
+- **Memory Efficiency**: ~12,052 messages per MB of storage (87 bytes per message)
 
 ### Benchmark Comparison with protobufjs
 
@@ -231,22 +232,29 @@ npm run benchmark:compare
 
 **Performance Comparison Results:**
 
-| Operation | Rust (ops/sec) | JavaScript (ops/sec) | Notes |
-|-----------|---------------|---------------------|-------|
-| Encoding | ~163k | ~1,087k | JS faster for small ops |
-| Decoding | ~192k | ~1,062k | JS faster for small ops |
-| Roundtrip | ~83k | ~489k | JS faster for small ops |
-| Small Messages | ~221k | ~3,420k | JS optimized for simple cases |
-| Writer Operations | ~338k | ~20,657k | NAPI overhead significant |
-| Reader Operations | ~840k | ~72,084k | NAPI overhead significant |
+| Operation | Rust (ops/sec) | JavaScript (ops/sec) | Speedup | Notes |
+|-----------|---------------|---------------------|---------|-------|
+| Encoding | 159,990 | 1,037,207 | 0.15x | JS faster due to NAPI overhead |
+| Decoding | 184,438 | 1,072,947 | 0.17x | JS faster due to NAPI overhead |
+| Roundtrip | 80,522 | 517,466 | 0.16x | JS faster due to NAPI overhead |
+| Small Messages | 207,209 | 4,171,546 | 0.05x | JS optimized for simple cases |
+| Writer Operations | 306,798 | 15,422,400 | 0.02x | NAPI overhead significant |
+| Reader Operations | 764,959 | 75,416,089 | 0.01x | NAPI overhead significant |
 
 **Binary Compatibility:** ✅ Both versions produce identical binary output (87 bytes)
 
-**Note:** The JavaScript version (protobufjs) is faster in these benchmarks due to NAPI boundary crossing overhead. The Rust version's advantages become more apparent in:
-- CPU-bound batch processing scenarios
-- Integration with other Rust components
+**Throughput Summary:**
+- Rust achieves consistent throughput across message sizes
+- JavaScript version shows higher raw throughput due to no FFI boundary
+- Average speedup across all operations: 0.09x (calculated from all 6 benchmark operations)
+- Note: The Rust version is slower in these micro-benchmarks due to NAPI overhead
+
+**Note on Throughput:** The JavaScript version (protobufjs) shows higher throughput in these micro-benchmarks due to NAPI boundary crossing overhead (FFI cost). The Rust version's advantages become more apparent in:
+- CPU-bound batch processing with sustained load
+- Integration with other Rust components (no FFI overhead)
 - Lower-level systems programming contexts
-- Scenarios requiring explicit memory control
+- Scenarios requiring explicit memory control and predictable performance
+- Large message processing where FFI overhead is amortized
 
 ## 🔨 Building from Source
 
