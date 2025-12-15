@@ -21,7 +21,8 @@
   "license": "MIT",
   "devDependencies": {
     "@napi-rs/cli": "^3.0.0-alpha.71",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "protobufjs": "^7.5.4"
   },
   "engines": {
     "node": ">= 10"
@@ -36,6 +37,7 @@
     "test:message": "node test-message.js",
     "example": "node example.js",
     "benchmark": "node benchmark.js",
+    "benchmark:compare": "node --expose-gc benchmark-comparison.js",
     "version": "napi version"
   }
 }
