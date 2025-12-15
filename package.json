@@ -17,10 +17,8 @@
     "bench": "node benchmark.js",
     "bench:compare": "node benchmark-comparison.js"
   },
-  "dependencies": {
-    "@napi-rs/cli": "^2.0.0"
-  },
   "devDependencies": {
+    "@napi-rs/cli": "^2.0.0",
     "protobufjs": "^7.0.0",
     "benchmark": "^2.1.4"
   }

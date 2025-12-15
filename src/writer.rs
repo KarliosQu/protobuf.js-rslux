@@ -15,7 +15,9 @@ impl Writer {
     #[napi(constructor)]
     pub fn new() -> Self {
         Writer {
-            buffer: Vec::with_capacity(256), // Pre-allocate for better performance
+            // Pre-allocate 256 bytes to reduce reallocations for typical messages
+            // Most protobuf messages are < 256 bytes, avoiding initial growth
+            buffer: Vec::with_capacity(256),
             stack: Vec::new(),
         }
     }
@@ -176,6 +178,8 @@ impl Writer {
     }
 
     /// Finish writing and return the buffer
+    /// Note: This clones the buffer to allow reuse via reset().
+    /// For best performance, only call finish() once per writer lifecycle.
     #[napi]
     pub fn finish(&mut self) -> Buffer {
         Buffer::from(self.buffer.clone())

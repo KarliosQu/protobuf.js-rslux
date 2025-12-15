@@ -316,10 +316,3 @@ module.exports.Reader = Reader
 module.exports.Writer = Writer
 module.exports.encodeVarint = encodeVarint
 module.exports.decodeVarint = decodeVarint
-
-// Convenience utilities
-module.exports.util = {
-  newBuffer(size) {
-    return Buffer.allocUnsafe(size);
-  }
-}

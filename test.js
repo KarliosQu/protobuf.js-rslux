@@ -191,7 +191,7 @@ assertBufferEqual(buffer, Buffer.from([0xc8, 0x01]), 'Writer.reset() clears buff
 console.log('\n=== Testing Reader ===\n');
 
 // Test uint32
-reader = new Reader(Buffer.from([0x96, 0x01]));
+let reader = new Reader(Buffer.from([0x96, 0x01]));
 assertEqual(reader.uint32(), 150, 'Reader.uint32() reads 150');
 
 // Test int32
