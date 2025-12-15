@@ -1,9 +1,8 @@
 use crate::varint::{encode_varint32, encode_varint64, zigzag_encode32, zigzag_encode64};
-use crate::wire_type::{encode_tag, WireType};
 use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-/// Binary writer for Protocol Buffer messages
+/// Binary writer for Protocol Buffer messages with fluent API
 #[napi]
 pub struct Writer {
     buffer: Vec<u8>,
@@ -16,114 +15,127 @@ impl Writer {
     #[napi(constructor)]
     pub fn new() -> Self {
         Writer {
-            buffer: Vec::new(),
+            buffer: Vec::with_capacity(256), // Pre-allocate for better performance
             stack: Vec::new(),
         }
     }
 
-    /// Get current buffer length
+    /// Write uint32 (varint encoded)
     #[napi]
-    pub fn len(&self) -> u32 {
-        self.buffer.len() as u32
-    }
-
-    /// Write a tag (field number and wire type)
-    #[napi]
-    pub fn write_tag(&mut self, field_number: u32, wire_type: u32) -> Result<()> {
-        let wt = WireType::from_u8(wire_type as u8)
-            .ok_or_else(|| Error::from_reason("Invalid wire type"))?;
-        let tag = encode_tag(field_number, wt);
-        self.buffer.extend_from_slice(&encode_varint32(tag));
-        Ok(())
-    }
-
-    /// Write a varint (u32)
-    #[napi]
-    pub fn write_varint32(&mut self, value: u32) {
+    pub fn uint32(&mut self, value: u32) -> &Self {
         self.buffer.extend_from_slice(&encode_varint32(value));
+        self
     }
 
-    /// Write a varint (u64/i64)
+    /// Write int32 (varint encoded)
     #[napi]
-    pub fn write_varint64(&mut self, value: i64) {
-        self.buffer.extend_from_slice(&encode_varint64(value as u64));
+    pub fn int32(&mut self, value: i32) -> &Self {
+        // Sign-extend to 64-bit for proper varint encoding of negative numbers
+        let extended = value as i64;
+        self.buffer.extend_from_slice(&encode_varint64(extended as u64));
+        self
     }
 
-    /// Write a signed varint (zigzag encoded i32)
+    /// Write sint32 (zigzag + varint encoded)
     #[napi]
-    pub fn write_sint32(&mut self, value: i32) {
+    pub fn sint32(&mut self, value: i32) -> &Self {
         let encoded = zigzag_encode32(value);
         self.buffer.extend_from_slice(&encode_varint32(encoded));
+        self
     }
 
-    /// Write a signed varint (zigzag encoded i64)
+    /// Write uint64 (varint encoded)
     #[napi]
-    pub fn write_sint64(&mut self, value: i64) {
+    pub fn uint64(&mut self, value: i64) -> &Self {
+        self.buffer.extend_from_slice(&encode_varint64(value as u64));
+        self
+    }
+
+    /// Write int64 (varint encoded)
+    #[napi]
+    pub fn int64(&mut self, value: i64) -> &Self {
+        self.buffer.extend_from_slice(&encode_varint64(value as u64));
+        self
+    }
+
+    /// Write sint64 (zigzag + varint encoded)
+    #[napi]
+    pub fn sint64(&mut self, value: i64) -> &Self {
         let encoded = zigzag_encode64(value);
         self.buffer.extend_from_slice(&encode_varint64(encoded));
+        self
     }
 
-    /// Write fixed32
+    /// Write bool (varint encoded as 0 or 1)
     #[napi]
-    pub fn write_fixed32(&mut self, value: u32) {
-        self.buffer.extend_from_slice(&value.to_le_bytes());
-    }
-
-    /// Write fixed64
-    #[napi]
-    pub fn write_fixed64(&mut self, value: i64) {
-        self.buffer.extend_from_slice(&(value as u64).to_le_bytes());
-    }
-
-    /// Write sfixed32
-    #[napi]
-    pub fn write_sfixed32(&mut self, value: i32) {
-        self.buffer.extend_from_slice(&value.to_le_bytes());
-    }
-
-    /// Write sfixed64
-    #[napi]
-    pub fn write_sfixed64(&mut self, value: i64) {
-        self.buffer.extend_from_slice(&value.to_le_bytes());
-    }
-
-    /// Write float (32-bit)
-    #[napi]
-    pub fn write_float(&mut self, value: f64) {
-        let bits = (value as f32).to_bits();
-        self.buffer.extend_from_slice(&bits.to_le_bytes());
-    }
-
-    /// Write double (64-bit)
-    #[napi]
-    pub fn write_double(&mut self, value: f64) {
-        self.buffer.extend_from_slice(&value.to_le_bytes());
-    }
-
-    /// Write boolean
-    #[napi]
-    pub fn write_bool(&mut self, value: bool) {
+    pub fn bool(&mut self, value: bool) -> &Self {
         self.buffer.push(if value { 1 } else { 0 });
+        self
     }
 
-    /// Write string (UTF-8 encoded)
+    /// Write fixed32 (little-endian 4 bytes)
     #[napi]
-    pub fn write_string(&mut self, value: String) {
-        let bytes = value.as_bytes();
-        self.buffer.extend_from_slice(&encode_varint32(bytes.len() as u32));
-        self.buffer.extend_from_slice(bytes);
+    pub fn fixed32(&mut self, value: u32) -> &Self {
+        self.buffer.extend_from_slice(&value.to_le_bytes());
+        self
     }
 
-    /// Write bytes
+    /// Write sfixed32 (little-endian 4 bytes)
     #[napi]
-    pub fn write_bytes(&mut self, value: Buffer) {
+    pub fn sfixed32(&mut self, value: i32) -> &Self {
+        self.buffer.extend_from_slice(&value.to_le_bytes());
+        self
+    }
+
+    /// Write fixed64 (little-endian 8 bytes)
+    #[napi]
+    pub fn fixed64(&mut self, value: i64) -> &Self {
+        self.buffer.extend_from_slice(&(value as u64).to_le_bytes());
+        self
+    }
+
+    /// Write sfixed64 (little-endian 8 bytes)
+    #[napi]
+    pub fn sfixed64(&mut self, value: i64) -> &Self {
+        self.buffer.extend_from_slice(&value.to_le_bytes());
+        self
+    }
+
+    /// Write float (32-bit, little-endian)
+    #[napi]
+    pub fn float(&mut self, value: f64) -> &Self {
+        let f32_value = value as f32;
+        self.buffer.extend_from_slice(&f32_value.to_le_bytes());
+        self
+    }
+
+    /// Write double (64-bit, little-endian)
+    #[napi]
+    pub fn double(&mut self, value: f64) -> &Self {
+        self.buffer.extend_from_slice(&value.to_le_bytes());
+        self
+    }
+
+    /// Write bytes (length-delimited)
+    #[napi]
+    pub fn bytes(&mut self, value: Buffer) -> &Self {
         let bytes = value.as_ref();
         self.buffer.extend_from_slice(&encode_varint32(bytes.len() as u32));
         self.buffer.extend_from_slice(bytes);
+        self
     }
 
-    /// Fork the writer (for nested messages)
-    /// Returns the current position for later length calculation
+    /// Write string (UTF-8, length-delimited)
+    #[napi]
+    pub fn string(&mut self, value: String) -> &Self {
+        let bytes = value.as_bytes();
+        self.buffer.extend_from_slice(&encode_varint32(bytes.len() as u32));
+        self.buffer.extend_from_slice(bytes);
+        self
+    }
+
+    /// Fork the writer for nested messages
+    /// Returns the position for later length calculation
     #[napi]
     pub fn fork(&mut self) -> u32 {
         let head = self.buffer.len();
@@ -133,10 +145,10 @@ impl Writer {
         self.buffer.len() as u32
     }
 
-    /// Write length delimiter (after fork)
+    /// Write length delimiter after fork
     /// Calculates the length of the nested message and updates the length prefix
     #[napi]
-    pub fn ldelim(&mut self) -> Result<()> {
+    pub fn ldelim(&mut self) -> Result<&Self> {
         if self.stack.is_empty() {
             return Err(Error::from_reason("No fork to delimit"));
         }
@@ -160,19 +172,20 @@ impl Writer {
             self.buffer[fork_pos + i] = byte;
         }
         
-        Ok(())
+        Ok(self)
     }
 
     /// Finish writing and return the buffer
     #[napi]
-    pub fn finish(&self) -> Buffer {
+    pub fn finish(&mut self) -> Buffer {
         Buffer::from(self.buffer.clone())
     }
 
-    /// Reset the writer
+    /// Reset the writer to reuse it
     #[napi]
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self) -> &Self {
         self.buffer.clear();
         self.stack.clear();
+        self
     }
 }

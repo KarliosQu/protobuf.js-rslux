@@ -1,8 +1,6 @@
 node_modules/
 target/
 *.node
-index.js
-index.d.ts
 dist/
 build/
 npm-debug.log*
@@ -11,3 +9,4 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 benchmark-results.txt
+Cargo.lock
