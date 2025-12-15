@@ -31,7 +31,11 @@
     "build": "napi build --platform --release",
     "build:debug": "napi build --platform",
     "prepublishOnly": "napi prepublish -t npm",
-    "test": "node test.js",
+    "test": "node test.js && node test-message.js",
+    "test:basic": "node test.js",
+    "test:message": "node test-message.js",
+    "example": "node example.js",
+    "benchmark": "node benchmark.js",
     "version": "napi version"
   }
 }

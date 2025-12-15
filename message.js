@@ -219,6 +219,42 @@ function createFieldDecoder(readFunc) {
   };
 }
 
+/**
+ * Utility functions
+ */
+
+/**
+ * Test if a value is an integer
+ */
+function isInteger(value) {
+  return typeof value === 'number' && isFinite(value) && Math.floor(value) === value;
+}
+
+/**
+ * Test if a value is a string
+ */
+function isString(value) {
+  return typeof value === 'string' || value instanceof String;
+}
+
+/**
+ * Test if a value is a valid protobuf message
+ */
+function isMessage(value) {
+  return value && typeof value === 'object' && typeof value.constructor === 'function';
+}
+
+/**
+ * Create a basic decoder for a field
+ */
+function field(fieldNumber, wireType, readMethod) {
+  return {
+    fieldNumber,
+    wireType,
+    readMethod,
+  };
+}
+
 module.exports = {
   Message,
   Reader,
@@ -230,4 +266,8 @@ module.exports = {
   WIRE_TYPE_LENGTH_DELIMITED,
   createFieldEncoder,
   createFieldDecoder,
+  isInteger,
+  isString,
+  isMessage,
+  field,
 };

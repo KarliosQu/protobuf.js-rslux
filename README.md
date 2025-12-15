@@ -209,10 +209,18 @@ node example.js
 
 ## 📊 Performance
 
-Benchmarked on typical hardware:
-- **Encoding**: ~70k messages/second
-- **Decoding**: ~70k messages/second
+Benchmarked on typical hardware with complex messages (87 bytes, 7 fields):
+- **Encoding**: ~95k messages/second
+- **Decoding**: ~111k messages/second  
+- **Roundtrip**: ~48k messages/second
+- **Small messages**: ~128k messages/second
+- **Low-level operations**: 230k-387k ops/second
 - **Memory**: Minimal allocations due to Rust implementation
+
+Run your own benchmarks:
+```bash
+node benchmark.js
+```
 
 ## 🔨 Building from Source
 
